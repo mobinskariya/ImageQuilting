@@ -186,7 +186,12 @@ int main() {
 	}
 	cv::Mat output(outputY_size, outputX_size, CV_8UC3);
 
+	clock_t start = clock();
 	imageQuilting(input, output);
+	clock_t end = clock();
+	double elapsed_secs = double(end - start) / CLOCKS_PER_SEC;
+
+	cout << "time elapsed :" << elapsed_secs << endl;
 
 	cv::imshow("Output", output);
 
