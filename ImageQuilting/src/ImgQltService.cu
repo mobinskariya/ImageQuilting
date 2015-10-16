@@ -150,8 +150,8 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 	int y_size = hSrc.cols;
 	//std::cout << "inside image quilting" << endl;
 
-	//cv::cuda::GpuMat dSrc, dDst;
-	//dSrc.upload(hSrc);
+	cv::cuda::GpuMat dSrc, dDst;
+	dSrc.upload(hSrc);
 
 	std::vector<cv::Mat> imglist = createImageList(hSrc);
 
