@@ -148,10 +148,6 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 
 	int x_size = hSrc.rows;
 	int y_size = hSrc.cols;
-	//std::cout << "inside image quilting" << endl;
-
-	//cv::cuda::GpuMat dSrc, dDst;
-	//dSrc.upload(hSrc);
 
 	std::vector<cv::Mat> imglist = createImageList(hSrc);
 
@@ -162,7 +158,6 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 
 	for(int i = 0; i < newx; i++ ) {
 		for(int j = 0; j < newy; j++) {
-			//cout << "i , j : " << i << " : " << j << endl;
 
 			cv::Mat prevImg = getPreviousImg(i, j, hDst);
 
@@ -188,13 +183,6 @@ int main() {
 		cout << "Cannot read " + imageName << endl;
 	} else {
 		cout << imageName + " loaded" << endl;
-		/*cout << input << endl;
-		int b = input.at<cv::Vec3b>(0,0)[0];
-		int g = input.at<cv::Vec3b>(0,0)[1];
-		int r = input.at<cv::Vec3b>(0,0)[2];
-
-		int val = input.at<int>(0,0);
-		cout << b << g << r <<  endl;*/
 	}
 	cv::Mat output(outputY_size, outputX_size, CV_8UC3);
 
