@@ -174,8 +174,8 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 		}
 	}
 
-	//dSrc.copyTo(dDst);
-	//dDst.download(hDst);
+	dSrc.copyTo(dDst);
+	dDst.download(hDst);
 }
 
 int main() {
