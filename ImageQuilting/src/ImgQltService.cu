@@ -18,6 +18,7 @@
 
 using std::cout;
 using std::endl;
+using namespace cv::cuda;
 
 int outputX_size = 250;
 int outputY_size = 250;
@@ -179,6 +180,23 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 }
 
 int main() {
+
+	int num_devices = getCudaEnabledDeviceCount();
+	cout << "cpu count :" << num_devices << endl;
+
+	for (int i = 0; i < num_devices; ++i)
+	    {
+	        cv::cuda::printShortCudaDeviceInfo(i);
+
+	        DeviceInfo dev_info(i);
+	        if (!dev_info.isCompatible())
+	        {
+	            std::cout << "CUDA module isn't built for GPU #" << i << " ("
+	                 << dev_info.name() << ", CC " << dev_info.majorVersion()
+	                 << dev_info.minorVersion() << "\n";
+	            return -1;
+	        }
+	    }
 
 	std::cout << "Hello World" << std::endl;
 	std::string imageName = "image1.png";
