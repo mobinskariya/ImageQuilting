@@ -15,6 +15,8 @@
 #include <unistd.h>
 #include <cuda.h>
 #include"opencv2/cudaarithm.hpp"
+#include "tbb/tbb_stddef.h"
+
 
 using std::cout;
 using std::endl;
@@ -34,7 +36,16 @@ std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
 			imglist[(i * (y_size - sample_size)) + j] = hSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
 		}
 	}
+	cout << "imglist size:"<<imglist.size()<<endl;
 	return imglist;
+}
+
+__global__ void cudaCreateImageList(cv::cuda::GpuMat& dSrc, std::vector<cv::cuda::GpuMat>& dDst, int rows, int cols, int sample_size) {
+
+	int xIndex = threadIdx.x;
+	int yIndex = threadIdx.y;
+	printf("\nhello world :%i,%i",dSrc.rows,dSrc.cols);
+	//dDst[(i * (rows - sample_size)) + j] = dSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
 }
 
 double getPixelValue(cv::Vec3b& pixel) {
@@ -156,6 +167,13 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 
 	std::vector<cv::Mat> imglist = createImageList(hSrc);
 
+
+	std::vector<cv::cuda::GpuMat> dList((x_size - sample_size) * (y_size - sample_size));
+	const dim3 grid(x_size-sample_size, y_size-sample_size);
+	const dim3 block(1,1);
+
+	//cudaCreateImageList<<<grid,block>>>(dSrc,dList,x_size,y_size,sample_size);
+
 	int nx = outputX_size/(sample_size - overlap_size);
 	int ny = outputY_size/(sample_size - overlap_size);
 	int newx = nx + (x_size - nx * overlap_size) / sample_size;
@@ -175,11 +193,12 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 		}
 	}
 
-	dSrc.copyTo(dDst);
-	dDst.download(hDst);
+	//dSrc.copyTo(dDst);
+	//dDst.download(hDst);
 }
 
 int main() {
+
 
 	int num_devices = getCudaEnabledDeviceCount();
 	cout << "cpu count :" << num_devices << endl;
