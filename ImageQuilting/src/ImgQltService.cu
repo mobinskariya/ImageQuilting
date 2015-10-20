@@ -27,10 +27,10 @@ int outputY_size = 250;
 int sample_size = 20;
 int overlap_size = 5;
 
-std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
+std::vector<cv::cuda::GpuMat> createImageList(cv::cuda::GpuMat& hSrc) {
 	int x_size = hSrc.rows;
 	int y_size = hSrc.cols;
-	std::vector<cv::Mat> imglist((x_size - sample_size) * (y_size - sample_size));
+	std::vector<cv::cuda::GpuMat> imglist((x_size - sample_size) * (y_size - sample_size));
 	for(int i = 0; i < x_size - sample_size; i++) {
 		for(int j = 0; j < y_size - sample_size; j++) {
 			imglist[(i * (y_size - sample_size)) + j] = hSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
@@ -52,6 +52,7 @@ double getPixelValue(cv::Vec3b& pixel) {
 	int b = pixel[0];
 	int g = pixel[1];
 	int r = pixel[2];
+
 	//cout << "b " << b << "g " << g << "r "<< r <<  endl;
 	//cout << "result:" << 0.2989 * r + 0.5870 * g + 0.1140 * b << endl;
 	return 0.2989 * r + 0.5870 * g + 0.1140 * b;
@@ -165,7 +166,8 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 	cv::cuda::GpuMat dSrc, dDst;
 	dSrc.upload(hSrc);
 
-	std::vector<cv::Mat> imglist = createImageList(hSrc);
+
+	std::vector<cv::cuda::GpuMat> imglist = createImageList(dSrc);
 
 
 	std::vector<cv::cuda::GpuMat> dList((x_size - sample_size) * (y_size - sample_size));
