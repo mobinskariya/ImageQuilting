@@ -27,10 +27,10 @@ int outputY_size = 250;
 int sample_size = 20;
 int overlap_size = 5;
 
-std::vector<cv::cuda::GpuMat> createImageList(cv::cuda::GpuMat& hSrc) {
+std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
 	int x_size = hSrc.rows;
 	int y_size = hSrc.cols;
-	std::vector<cv::cuda::GpuMat> imglist((x_size - sample_size) * (y_size - sample_size));
+	std::vector<cv::Mat> imglist((x_size - sample_size) * (y_size - sample_size));
 	for(int i = 0; i < x_size - sample_size; i++) {
 		for(int j = 0; j < y_size - sample_size; j++) {
 			imglist[(i * (y_size - sample_size)) + j] = hSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
@@ -167,7 +167,7 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 	dSrc.upload(hSrc);
 
 
-	std::vector<cv::cuda::GpuMat> imglist = createImageList(dSrc);
+	std::vector<cv::Mat> imglist = createImageList(hSrc);
 
 
 	std::vector<cv::cuda::GpuMat> dList((x_size - sample_size) * (y_size - sample_size));
@@ -207,7 +207,7 @@ int main() {
 
 	for (int i = 0; i < num_devices; ++i)
 	    {
-	        cv::cuda::printShortCudaDeviceInfo(i);
+	        cv::cuda::printCudaDeviceInfo(i);
 
 	        DeviceInfo dev_info(i);
 	        if (!dev_info.isCompatible())
