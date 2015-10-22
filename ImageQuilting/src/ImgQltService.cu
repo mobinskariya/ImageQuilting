@@ -45,6 +45,7 @@ __global__ void cudaCreateImageList(cv::cuda::GpuMat& dSrc, std::vector<cv::cuda
 	int xIndex = threadIdx.x;
 	int yIndex = threadIdx.y;
 	printf("\nhello world :%i,%i",dSrc.rows,dSrc.cols);
+
 	//dDst[(i * (rows - sample_size)) + j] = dSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
 }
 
