@@ -17,6 +17,7 @@
 #include"opencv2/cudaarithm.hpp"
 #include "tbb/tbb_stddef.h"
 
+#define BLOCK_SIZE 16
 
 using std::cout;
 using std::endl;
@@ -27,26 +28,75 @@ int outputY_size = 250;
 int sample_size = 20;
 int overlap_size = 5;
 
-std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
-	int x_size = hSrc.rows;
-	int y_size = hSrc.cols;
-	std::vector<cv::Mat> imglist((x_size - sample_size) * (y_size - sample_size));
-	for(int i = 0; i < x_size - sample_size; i++) {
-		for(int j = 0; j < y_size - sample_size; j++) {
-			imglist[(i * (y_size - sample_size)) + j] = hSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
-		}
-	}
-	cout << "imglist size:"<<imglist.size()<<endl;
-	return imglist;
+typedef struct {
+    int width;
+    int height;
+    int stride;
+    float* elements;
+} Matrix;
+
+__device__ Matrix GetSubMatrix(Matrix A, int row, int col, int sample_size, size_t step)
+{
+   Matrix Asub;
+   Asub.width    = BLOCK_SIZE;
+   Asub.height   = BLOCK_SIZE;
+   Asub.stride   = A.stride;
+   Asub.elements = &A.elements[A.stride * BLOCK_SIZE * row
+                                        + BLOCK_SIZE * col];
+   return Asub;
 }
 
-__global__ void cudaCreateImageList(cv::cuda::GpuMat& dSrc, std::vector<cv::cuda::GpuMat>& dDst, int rows, int cols, int sample_size) {
+__global__ void cudaCreateImageList(uchar* dSrc, std::vector<cv::cuda::GpuMat>& dDst, int height, int width, int sample_size, int step) {
 
-	int xIndex = threadIdx.x;
-	int yIndex = threadIdx.y;
-	printf("\nhello world :%i,%i",dSrc.rows,dSrc.cols);
+	int colIdx = blockDim.x * blockIdx.x + threadIdx.x;
+	int rowIdx = blockDim.y * blockIdx.y + threadIdx.y;
 
-	//dDst[(i * (rows - sample_size)) + j] = dSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
+	printf("\n indices : %d %d",rowIdx, colIdx);
+	printf("\nb : %u g : %u r : %u",dSrc[(step*rowIdx+3*colIdx)],dSrc[(step*rowIdx+3*colIdx)+1],dSrc[(step*rowIdx+3*colIdx)+2]);
+	//dDst[(xIndex * height) + yIndex] = dSrc;//dSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
+}
+
+__global__ void copyImg(uchar* dSrc, uchar* dDst, int height, int width, int sample_size, int step) {
+
+	int colIdx = blockDim.x * blockIdx.x + threadIdx.x;
+	int rowIdx = blockDim.y * blockIdx.y + threadIdx.y;
+
+	dDst[(step*rowIdx+3*colIdx)]=dSrc[(step*rowIdx+3*colIdx)];
+	dDst[(step*rowIdx+3*colIdx)+1]=dSrc[(step*rowIdx+3*colIdx)+1];
+	dDst[(step*rowIdx+3*colIdx)+2]=dSrc[(step*rowIdx+3*colIdx)+2];
+	//dDst[(xIndex * height) + yIndex] = dSrc;//dSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
+}
+
+std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
+	int height = hSrc.rows;
+	int width = hSrc.cols;
+
+	cv::cuda::GpuMat dSrc, dDst(height, width, CV_8UC3);
+	dSrc.upload(hSrc);
+
+	std::vector<cv::Mat> imglist((height - sample_size) * (width - sample_size));
+	for(int i = 0; i < height - sample_size; i++) {
+		for(int j = 0; j < width - sample_size; j++) {
+			imglist[(i * (width - sample_size)) + j] = hSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
+		}
+	}
+
+
+	std::vector<cv::cuda::GpuMat> dList((height - sample_size) * (width - sample_size));
+
+	const dim3 grid(8,8);
+	const dim3 block(((width - sample_size)/grid.x)+1,((height - sample_size)/grid.y)+1);
+
+	copyImg<<<grid,block>>>(dSrc.ptr(),dDst.ptr(),height-sample_size,width-sample_size,sample_size,dSrc.step);
+
+	cout << "\ninput" << hSrc << endl;
+	cv::Mat output;
+	dDst.download(output);
+	cout << "\noutput" << output << endl;
+	cv::imshow("Output", output);
+	//cudaCreateImageList<<<grid,block>>>(dSrc.ptr(),dList,height-sample_size,width-sample_size,sample_size,dSrc.step);
+
+	return imglist;
 }
 
 double getPixelValue(cv::Vec3b& pixel) {
@@ -160,27 +210,18 @@ void placeImg(int row, int col, cv::Mat& tile, cv::Mat& lImg) {
 
 void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 
-	int x_size = hSrc.rows;
-	int y_size = hSrc.cols;
+	int height = hSrc.rows;
+	int width = hSrc.cols;
 	//std::cout << "inside image quilting" << endl;
 
-	cv::cuda::GpuMat dSrc, dDst;
-	dSrc.upload(hSrc);
-
+	cv::cuda::GpuMat dDst;
 
 	std::vector<cv::Mat> imglist = createImageList(hSrc);
 
-
-	std::vector<cv::cuda::GpuMat> dList((x_size - sample_size) * (y_size - sample_size));
-	const dim3 grid(x_size-sample_size, y_size-sample_size);
-	const dim3 block(1,1);
-
-	//cudaCreateImageList<<<grid,block>>>(dSrc,dList,x_size,y_size,sample_size);
-
 	int nx = outputX_size/(sample_size - overlap_size);
 	int ny = outputY_size/(sample_size - overlap_size);
-	int newx = nx + (x_size - nx * overlap_size) / sample_size;
-	int newy = ny + (y_size - ny * overlap_size) / sample_size;
+	int newx = nx + (height - nx * overlap_size) / sample_size;
+	int newy = ny + (width - ny * overlap_size) / sample_size;
 
 	for(int i = 0; i < newx; i++ ) {
 		for(int j = 0; j < newy; j++) {
@@ -204,21 +245,7 @@ int main() {
 
 
 	int num_devices = getCudaEnabledDeviceCount();
-	cout << "cpu count :" << num_devices << endl;
-
-	for (int i = 0; i < num_devices; ++i)
-	    {
-	        cv::cuda::printCudaDeviceInfo(i);
-
-	        DeviceInfo dev_info(i);
-	        if (!dev_info.isCompatible())
-	        {
-	            std::cout << "CUDA module isn't built for GPU #" << i << " ("
-	                 << dev_info.name() << ", CC " << dev_info.majorVersion()
-	                 << dev_info.minorVersion() << "\n";
-	            return -1;
-	        }
-	    }
+	cout << "gpu count :" << num_devices << endl;
 
 	std::cout << "Hello World" << std::endl;
 	std::string imageName = "image1.png";
@@ -240,7 +267,7 @@ int main() {
 
 	imageQuilting(input, output);
 
-	cv::imshow("Output", output);
+	//cv::imshow("Output", output);
 
 	cv::waitKey();
 
