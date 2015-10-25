@@ -18,6 +18,7 @@
 #include "tbb/tbb_stddef.h"
 
 #define BLOCK_SIZE 16
+#define SAMPLE_SIZE 20
 
 using std::cout;
 using std::endl;
@@ -35,31 +36,41 @@ typedef struct {
     float* elements;
 } Matrix;
 
-__device__ Matrix GetSubMatrix(Matrix A, int row, int col, int sample_size, size_t step)
-{
-   Matrix Asub;
-   Asub.width    = BLOCK_SIZE;
-   Asub.height   = BLOCK_SIZE;
-   Asub.stride   = A.stride;
-   Asub.elements = &A.elements[A.stride * BLOCK_SIZE * row
-                                        + BLOCK_SIZE * col];
-   return Asub;
+__device__ uchar* getSubImg(uchar* dSrc, int row, int col, int step) {
+	return &dSrc[step * row + col * 3];
+}
+
+__device__ uchar getGrayElement(uchar* subArray, int row, int col, int step) {
+	int b = subArray[row * step + col];
+	int g = subArray[row * step + col + 1];
+	int r = subArray[row * step + col + 2];
+	return 0.2989 * r + 0.5870 * g + 0.1140 * b;
 }
 
 __global__ void cudaCreateImageList(uchar* dSrc, std::vector<cv::cuda::GpuMat>& dDst, int height, int width, int sample_size, int step) {
 
-	int colIdx = blockDim.x * blockIdx.x + threadIdx.x;
-	int rowIdx = blockDim.y * blockIdx.y + threadIdx.y;
+	int blkcolIdx = blockIdx.x;
+	int blkrowIdx = blockIdx.y;
 
-	printf("\n indices : %d %d",rowIdx, colIdx);
-	printf("\nb : %u g : %u r : %u",dSrc[(step*rowIdx+3*colIdx)],dSrc[(step*rowIdx+3*colIdx)+1],dSrc[(step*rowIdx+3*colIdx)+2]);
+	int colIdx = threadIdx.x;
+	int rowIdx = threadIdx.y;
+
+	uchar* subArray = getSubImg(dSrc, blkrowIdx, blkcolIdx, step);
+
+	__shared__ uchar subImgGray[SAMPLE_SIZE][SAMPLE_SIZE];
+	subImgGray[rowIdx][colIdx] = getGrayElement(subArray, rowIdx, colIdx * 3, step);
+
+	printf("%u", subImgGray[rowIdx][colIdx]);
+
 	//dDst[(xIndex * height) + yIndex] = dSrc;//dSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
 }
 
 __global__ void copyImg(uchar* dSrc, uchar* dDst, int height, int width, int sample_size, int step) {
 
-	int colIdx = blockDim.x * blockIdx.x + threadIdx.x;
-	int rowIdx = blockDim.y * blockIdx.y + threadIdx.y;
+	int colIdx = blockIdx.x + threadIdx.x;
+	int rowIdx = blockIdx.y + threadIdx.y;
+
+	printf("\nhello world again");
 
 	dDst[(step*rowIdx+3*colIdx)]=dSrc[(step*rowIdx+3*colIdx)];
 	dDst[(step*rowIdx+3*colIdx)+1]=dSrc[(step*rowIdx+3*colIdx)+1];
@@ -71,7 +82,7 @@ std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
 	int height = hSrc.rows;
 	int width = hSrc.cols;
 
-	cv::cuda::GpuMat dSrc, dDst(height, width, CV_8UC3);
+	cv::cuda::GpuMat dSrc;
 	dSrc.upload(hSrc);
 
 	std::vector<cv::Mat> imglist((height - sample_size) * (width - sample_size));
@@ -84,17 +95,21 @@ std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
 
 	std::vector<cv::cuda::GpuMat> dList((height - sample_size) * (width - sample_size));
 
-	const dim3 grid(8,8);
-	const dim3 block(((width - sample_size)/grid.x)+1,((height - sample_size)/grid.y)+1);
-
-	copyImg<<<grid,block>>>(dSrc.ptr(),dDst.ptr(),height-sample_size,width-sample_size,sample_size,dSrc.step);
+	const dim3 grid(width-sample_size,height-sample_size);
+	const dim3 block(sample_size,sample_size);
 
 	cout << "\ninput" << hSrc << endl;
-	cv::Mat output;
-	dDst.download(output);
-	cout << "\noutput" << output << endl;
-	cv::imshow("Output", output);
-	//cudaCreateImageList<<<grid,block>>>(dSrc.ptr(),dList,height-sample_size,width-sample_size,sample_size,dSrc.step);
+
+
+	cv::cuda::GpuMat dDst(height, width, CV_8UC3);
+	/*copyImg<<<grid,block>>>(dSrc.ptr(),dDst.ptr(),height-sample_size,width-sample_size,sample_size,dSrc.step);*/
+
+
+	cv::Mat temp;
+	dDst.download(temp);
+	cout << "\noutput" << temp << endl;
+	//cv::imshow("Output", output);
+	cudaCreateImageList<<<grid,block>>>(dSrc.ptr(),dList,height-sample_size,width-sample_size,sample_size,dSrc.step);
 
 	return imglist;
 }
