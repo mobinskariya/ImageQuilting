@@ -57,7 +57,25 @@ __device__ uchar getGrayElement(uchar* subArray, int row, int col, int step) {
 	return 0.2989 * r + 0.5870 * g + 0.1140 * b;
 }
 
-__global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, uchar* curImg, int step, float* ssidArr) {
+__device__ uchar getElement(uchar* subArray, int row, int col, int step) {
+	return subArray[row * step + col];
+}
+
+__global__ void cudaGetPatch(uchar* dSrc, uchar* currImg, int step) {
+	int blkcolIdx = blockIdx.x;
+	int blkrowIdx = blockIdx.y;
+
+	int colIdx = threadIdx.x;
+	int rowIdx = threadIdx.y;
+
+	uchar* subArray = getSubImg(dSrc, blkrowIdx, blkcolIdx, step);
+	__shared__ uchar subImg[SAMPLE_SIZE][SAMPLE_SIZE*3];
+	subImg[rowIdx][colIdx] = getElement(subArray, rowIdx, colIdx, step);
+
+
+}
+
+__global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, int step, float* ssidArr) {
 
 	int blkcolIdx = blockIdx.x;
 	int blkrowIdx = blockIdx.y;
@@ -243,18 +261,27 @@ cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width
 
 	SAFE_CALL(cudaMalloc<float>(&d_ssidArr,arraysize),"CUDA Malloc Failed");
 
-	cudaGetMinSSDImg<<<grid,block>>>(dSrc.ptr(), d_prevImg.ptr(), d_topImg.ptr(), d_curImg.ptr(), dSrc.step, d_ssidArr);
+	cudaGetMinSSDImg<<<grid,block>>>(dSrc.ptr(), d_prevImg.ptr(), d_topImg.ptr(), dSrc.step, d_ssidArr);
 	cudaDeviceSynchronize();
 
 	SAFE_CALL(cudaMemcpy(h_ssidArr,d_ssidArr,arraysize,cudaMemcpyDeviceToHost),"CUDA Memcpy Host To Device Failed");
 
+	float minssid = FLT_MAX;
+	int rowidx = 0;
+	int colidx = 0;
 	for(int i = 0; i < height - SAMPLE_SIZE; i++) {
-		printf("\n");
+		//printf("\n");
 		for(int j = 0; j < width - SAMPLE_SIZE; j++) {
-			printf("\t%f",h_ssidArr[i][j]);
+			//printf("\t%f",h_ssidArr[i][j]);
+			if(minssid > h_ssidArr[i][j]) {
+				minssid = h_ssidArr[i][j];
+				rowidx = i;
+				colidx = j;
+			}
 		}
 	}
 
+	printf("minssid : %f",minssid);
 	cv::Mat curImg;
 	d_curImg.download(curImg);
 	return curImg;
