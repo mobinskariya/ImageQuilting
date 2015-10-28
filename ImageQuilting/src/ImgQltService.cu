@@ -57,24 +57,6 @@ __device__ uchar getGrayElement(uchar* subArray, int row, int col, int step) {
 	return 0.2989 * r + 0.5870 * g + 0.1140 * b;
 }
 
-__device__ uchar getElement(uchar* subArray, int row, int col, int step) {
-	return subArray[row * step + col];
-}
-
-__global__ void cudaGetPatch(uchar* dSrc, uchar* currImg, int step) {
-	int blkcolIdx = blockIdx.x;
-	int blkrowIdx = blockIdx.y;
-
-	int colIdx = threadIdx.x;
-	int rowIdx = threadIdx.y;
-
-	uchar* subArray = getSubImg(dSrc, blkrowIdx, blkcolIdx, step);
-	__shared__ uchar subImg[SAMPLE_SIZE][SAMPLE_SIZE*3];
-	subImg[rowIdx][colIdx] = getElement(subArray, rowIdx, colIdx, step);
-
-
-}
-
 __global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, int step, float* ssidArr) {
 
 	int blkcolIdx = blockIdx.x;
@@ -261,9 +243,9 @@ cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width
 		}
 	}
 
-	printf("minssid : %f",minssid);
-	cv::Mat curImg;
-	d_curImg.download(curImg);
+	//printf("\nminssid : %f, row : %d, col : %d\n",minssid,rowidx,colidx);
+	cv::Mat curImg = hSrc(cv::Range(rowidx, rowidx + SAMPLE_SIZE), cv::Range(colidx, colidx + SAMPLE_SIZE));
+	//cout << curImg << endl;
 	return curImg;
 }
 
@@ -371,7 +353,7 @@ int main() {
 
 	imageQuilting(input, output);
 
-	//cv::imshow("Output", output);
+	cv::imshow("Output", output);
 
 	cv::waitKey();
 
