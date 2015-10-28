@@ -106,11 +106,6 @@ __global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, ucha
 		}
 		ssidArr[(blkrowIdx * gridDim.y) + blkcolIdx] = ssid;
 	}
-
-
-
-
-	//dDst[(xIndex * height) + yIndex] = dSrc;//dSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
 }
 
 __global__ void copyImg(uchar* dSrc, uchar* dDst, int height, int width, int sample_size, int step) {
