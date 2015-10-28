@@ -143,9 +143,6 @@ std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
 	int height = hSrc.rows;
 	int width = hSrc.cols;
 
-	//cv::cuda::GpuMat dSrc;
-	//dSrc.upload(hSrc);
-
 	std::vector<cv::Mat> imglist((height - sample_size) * (width - sample_size));
 	for(int i = 0; i < height - sample_size; i++) {
 		for(int j = 0; j < width - sample_size; j++) {
@@ -153,24 +150,7 @@ std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
 		}
 	}
 
-
-	//std::vector<cv::cuda::GpuMat> dList((height - sample_size) * (width - sample_size));
-
-	//const dim3 grid(width-sample_size,height-sample_size);
-	//const dim3 block(sample_size,sample_size);
-
-	//cout << "\ninput" << hSrc << endl;
-
-
 	cv::cuda::GpuMat dDst(height, width, CV_8UC3);
-	/*copyImg<<<grid,block>>>(dSrc.ptr(),dDst.ptr(),height-sample_size,width-sample_size,sample_size,dSrc.step);*/
-
-
-	//cv::Mat temp;
-	//dDst.download(temp);
-	//cout << "\noutput" << temp << endl;
-	//cv::imshow("Output", output);
-	//cudaGetMinSSDImg<<<grid,block>>>(dSrc.ptr(),dDst.ptr(),height-sample_size,width-sample_size,sample_size,dSrc.step);
 
 	return imglist;
 }
