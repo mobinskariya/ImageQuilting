@@ -24,6 +24,16 @@ using std::cout;
 using std::endl;
 using namespace cv::cuda;
 
+static inline void _safe_cuda_call(cudaError err, const char* msg, const char* file_name, const int line_number) {
+	if(err!=cudaSuccess) {
+		fprintf(stderr,"%s\n\nFile: %s\n\nLine Number: %d\n\nReason: %s\n",msg,file_name,line_number,cudaGetErrorString(err));
+		std::cin.get();
+		exit(EXIT_FAILURE);
+	}
+}
+
+#define SAFE_CALL(call,msg) _safe_cuda_call((call),(msg),__FILE__,__LINE__)
+
 int outputX_size = 250;
 int outputY_size = 250;
 int sample_size = 20;
@@ -47,7 +57,7 @@ __device__ uchar getGrayElement(uchar* subArray, int row, int col, int step) {
 	return 0.2989 * r + 0.5870 * g + 0.1140 * b;
 }
 
-__global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, uchar* curImg, int step) {
+__global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, uchar* curImg, int step, float* ssidArr) {
 
 	int blkcolIdx = blockIdx.x;
 	int blkrowIdx = blockIdx.y;
@@ -62,14 +72,14 @@ __global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, ucha
 	__shared__ uchar topImgGray[SAMPLE_SIZE][SAMPLE_SIZE];
 
 	subImgGray[rowIdx][colIdx] = getGrayElement(subArray, rowIdx, colIdx * 3, step);
-	printf("%u", subImgGray[rowIdx][colIdx]);
+	//printf("%u", subImgGray[rowIdx][colIdx]);
 	if (preImg != 0) {
 		preImgGray[rowIdx][colIdx] = getGrayElement(preImg, rowIdx, colIdx * 3, step);
-		printf("%u", preImgGray[rowIdx][colIdx]);
+		//printf("%u", preImgGray[rowIdx][colIdx]);
 	}
 	if (topImg != 0) {
 		topImgGray[rowIdx][colIdx] = getGrayElement(topImg, rowIdx, colIdx * 3, step);
-		printf("%u", topImgGray[rowIdx][colIdx]);
+		//printf("%u", topImgGray[rowIdx][colIdx]);
 	}
 
 	__syncthreads();
@@ -80,7 +90,8 @@ __global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, ucha
 		if (preImg != 0) {
 			for(int i = 0; i < SAMPLE_SIZE; i++) {
 				for(int j = 0; j < OVERLAP_SIZE; j++) {
-					ssid += subImgGray[i][j] - preImgGray[i][SAMPLE_SIZE - OVERLAP_SIZE + i];
+					int diff = subImgGray[i][j] - preImgGray[i][SAMPLE_SIZE - OVERLAP_SIZE + i];
+					ssid += sqrtf((float) (diff * diff));
 				}
 			}
 		}
@@ -88,10 +99,12 @@ __global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, ucha
 		if (topImg != 0) {
 			for(int i = 0; i < OVERLAP_SIZE; i++) {
 				for(int j = 0; j < SAMPLE_SIZE; j++) {
-					ssid += subImgGray[i][j] - topImgGray[SAMPLE_SIZE - OVERLAP_SIZE + i][j];
+					int diff = subImgGray[i][j] - topImgGray[SAMPLE_SIZE - OVERLAP_SIZE + i][j];
+					ssid += sqrtf((float) (diff * diff));
 				}
 			}
 		}
+		ssidArr[(blkrowIdx * gridDim.y) + blkcolIdx] = ssid;
 	}
 
 
@@ -133,7 +146,7 @@ std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
 	//const dim3 grid(width-sample_size,height-sample_size);
 	//const dim3 block(sample_size,sample_size);
 
-	cout << "\ninput" << hSrc << endl;
+	//cout << "\ninput" << hSrc << endl;
 
 
 	cv::cuda::GpuMat dDst(height, width, CV_8UC3);
@@ -228,11 +241,24 @@ cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width
 	const dim3 grid(width-sample_size,height-sample_size);
 	const dim3 block(sample_size,sample_size);
 
-	printf("src : %u",dSrc.ptr());
-	printf("topImg : %u",d_topImg.ptr());
+	float h_ssidArr[width-SAMPLE_SIZE][height-SAMPLE_SIZE];
+	float* d_ssidArr;
+	size_t arraysize = (width - SAMPLE_SIZE) * (height - SAMPLE_SIZE) * sizeof(float);
 
-	cudaGetMinSSDImg<<<grid,block>>>(dSrc.ptr(), d_prevImg.ptr(), d_topImg.ptr(), d_curImg.ptr(), dSrc.step);
+
+	SAFE_CALL(cudaMalloc<float>(&d_ssidArr,arraysize),"CUDA Malloc Failed");
+
+	cudaGetMinSSDImg<<<grid,block>>>(dSrc.ptr(), d_prevImg.ptr(), d_topImg.ptr(), d_curImg.ptr(), dSrc.step, d_ssidArr);
 	cudaDeviceSynchronize();
+
+	SAFE_CALL(cudaMemcpy(h_ssidArr,d_ssidArr,arraysize,cudaMemcpyDeviceToHost),"CUDA Memcpy Host To Device Failed");
+
+	for(int i = 0; i < height - SAMPLE_SIZE; i++) {
+		printf("\n");
+		for(int j = 0; j < width - SAMPLE_SIZE; j++) {
+			printf("\t%f",h_ssidArr[i][j]);
+		}
+	}
 
 	cv::Mat curImg;
 	d_curImg.download(curImg);
@@ -303,6 +329,8 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 			if(i == 0 && j == 0) {
 				currImg = imglist[0];
 			} else {
+
+				cout << "\n\n\ni, j :" << i << "," << j << endl;
 				currImg = getMinSSDImg(prevImg, topImg, hSrc, width, height);
 			}
 
