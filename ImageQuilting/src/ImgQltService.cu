@@ -17,127 +17,35 @@
 #include"opencv2/cudaarithm.hpp"
 #include "tbb/tbb_stddef.h"
 
-#define SAMPLE_SIZE 20
-#define OVERLAP_SIZE 5
 
 using std::cout;
 using std::endl;
 using namespace cv::cuda;
-
-static inline void _safe_cuda_call(cudaError err, const char* msg, const char* file_name, const int line_number) {
-	if(err!=cudaSuccess) {
-		fprintf(stderr,"%s\n\nFile: %s\n\nLine Number: %d\n\nReason: %s\n",msg,file_name,line_number,cudaGetErrorString(err));
-		std::cin.get();
-		exit(EXIT_FAILURE);
-	}
-}
-
-#define SAFE_CALL(call,msg) _safe_cuda_call((call),(msg),__FILE__,__LINE__)
 
 int outputX_size = 250;
 int outputY_size = 250;
 int sample_size = 20;
 int overlap_size = 5;
 
-typedef struct {
-    int width;
-    int height;
-    int stride;
-    float* elements;
-} Matrix;
-
-__device__ uchar* getSubImg(uchar* dSrc, int row, int col, int step) {
-	return &dSrc[step * row + col * 3];
-}
-
-__device__ uchar getGrayElement(uchar* subArray, int row, int col, int step) {
-	int b = subArray[row * step + col];
-	int g = subArray[row * step + col + 1];
-	int r = subArray[row * step + col + 2];
-	return 0.2989 * r + 0.5870 * g + 0.1140 * b;
-}
-
-__global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, int step, float* ssidArr) {
-
-	int blkcolIdx = blockIdx.x;
-	int blkrowIdx = blockIdx.y;
-
-	int colIdx = threadIdx.x;
-	int rowIdx = threadIdx.y;
-
-	uchar* subArray = getSubImg(dSrc, blkrowIdx, blkcolIdx, step);
-
-	__shared__ uchar subImgGray[SAMPLE_SIZE][SAMPLE_SIZE];
-	__shared__ uchar preImgGray[SAMPLE_SIZE][SAMPLE_SIZE];
-	__shared__ uchar topImgGray[SAMPLE_SIZE][SAMPLE_SIZE];
-
-	subImgGray[rowIdx][colIdx] = getGrayElement(subArray, rowIdx, colIdx * 3, step);
-	//printf("%u", subImgGray[rowIdx][colIdx]);
-	if (preImg != 0) {
-		preImgGray[rowIdx][colIdx] = getGrayElement(preImg, rowIdx, colIdx * 3, step);
-		//printf("%u", preImgGray[rowIdx][colIdx]);
-	}
-	if (topImg != 0) {
-		topImgGray[rowIdx][colIdx] = getGrayElement(topImg, rowIdx, colIdx * 3, step);
-		//printf("%u", topImgGray[rowIdx][colIdx]);
-	}
-
-	__syncthreads();
-
-	if (rowIdx == 0 && colIdx == 0) {
-
-		float ssid = 0;
-
-		if (preImg != 0) {
-			for(int i = 0; i < SAMPLE_SIZE; i++) {
-				for(int j = 0; j < OVERLAP_SIZE; j++) {
-					int diff = subImgGray[i][j] - preImgGray[i][SAMPLE_SIZE - OVERLAP_SIZE + j];
-					ssid += sqrtf((float) (diff * diff));
-				}
-			}
-		}
-
-		if (topImg != 0) {
-			for(int i = 0; i < OVERLAP_SIZE; i++) {
-				for(int j = 0; j < SAMPLE_SIZE; j++) {
-					int diff = subImgGray[i][j] - topImgGray[SAMPLE_SIZE - OVERLAP_SIZE + i][j];
-					ssid += sqrtf((float) (diff * diff));
-				}
-			}
-		}
-
-		int idx = (blkrowIdx * gridDim.x) + blkcolIdx;
-		ssidArr[idx] = ssid;
-	}
-}
-
-__global__ void copyImg(uchar* dSrc, uchar* dDst, int height, int width, int sample_size, int step) {
-
-	int colIdx = blockIdx.x + threadIdx.x;
-	int rowIdx = blockIdx.y + threadIdx.y;
-
-	printf("\nhello world again");
-
-	dDst[(step*rowIdx+3*colIdx)]=dSrc[(step*rowIdx+3*colIdx)];
-	dDst[(step*rowIdx+3*colIdx)+1]=dSrc[(step*rowIdx+3*colIdx)+1];
-	dDst[(step*rowIdx+3*colIdx)+2]=dSrc[(step*rowIdx+3*colIdx)+2];
-	//dDst[(xIndex * height) + yIndex] = dSrc;//dSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
-}
-
-std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
-	int height = hSrc.rows;
-	int width = hSrc.cols;
-
-	std::vector<cv::Mat> imglist((height - sample_size) * (width - sample_size));
-	for(int i = 0; i < height - sample_size; i++) {
-		for(int j = 0; j < width - sample_size; j++) {
-			imglist[(i * (width - sample_size)) + j] = hSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
+std::vector<cv::cuda::GpuMat> createImageList(cv::cuda::GpuMat& hSrc) {
+	int x_size = hSrc.rows;
+	int y_size = hSrc.cols;
+	std::vector<cv::cuda::GpuMat> imglist((x_size - sample_size) * (y_size - sample_size));
+	for(int i = 0; i < x_size - sample_size; i++) {
+		for(int j = 0; j < y_size - sample_size; j++) {
+			imglist[(i * (y_size - sample_size)) + j] = hSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
 		}
 	}
-
-	cv::cuda::GpuMat dDst(height, width, CV_8UC3);
-
+	cout << "imglist size:"<<imglist.size()<<endl;
 	return imglist;
+}
+
+__global__ void cudaCreateImageList(cv::cuda::GpuMat& dSrc, std::vector<cv::cuda::GpuMat>& dDst, int rows, int cols, int sample_size) {
+
+	int xIndex = threadIdx.x;
+	int yIndex = threadIdx.y;
+	printf("\nhello world :%i,%i",dSrc.rows,dSrc.cols);
+	//dDst[(i * (rows - sample_size)) + j] = dSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
 }
 
 /* __device__ cv::Mat getSubArray(cv::Mat& arr, int row, int col) 
@@ -205,54 +113,22 @@ int computeCombinedSSD(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& randImg, int 
 	return verticalSSD + horizontalSSD;
 }
 
-cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width, int height) {
-	cv::cuda::GpuMat dSrc, d_prevImg, d_topImg;
-	dSrc.upload(hSrc);
-	d_prevImg.upload(prevImg);
-	d_topImg.upload(topImg);
-
-	cv::cuda::GpuMat d_curImg(SAMPLE_SIZE, SAMPLE_SIZE, CV_8UC3);
-	const dim3 grid(width-sample_size,height-sample_size);
-	const dim3 block(sample_size,sample_size);
-
-	float h_ssidArr[height-SAMPLE_SIZE][width-SAMPLE_SIZE];
-	for(int i = 0; i < height-SAMPLE_SIZE; i++) {
-		for(int j = 0; j < width-SAMPLE_SIZE; j++) {
-			h_ssidArr[i][j] = i * (width - SAMPLE_SIZE) + j;
-		}
-	}
-	float* d_ssidArr;
-	size_t arraysize = (width - SAMPLE_SIZE) * (height - SAMPLE_SIZE) * sizeof(*d_ssidArr);
-
-	//cout << "prevImg\n" << prevImg << endl;
-
-	SAFE_CALL(cudaMalloc<float>(&d_ssidArr,arraysize),"CUDA Malloc Failed");
-	SAFE_CALL(cudaMemcpy(d_ssidArr,h_ssidArr,arraysize,cudaMemcpyHostToDevice),"CUDA Memcpy Host To Device Failed");
-
-	cudaGetMinSSDImg<<<grid,block>>>(dSrc.ptr(), d_prevImg.ptr(), d_topImg.ptr(), dSrc.step, d_ssidArr);
-	cudaDeviceSynchronize();
-
-	SAFE_CALL(cudaMemcpy(h_ssidArr,d_ssidArr,arraysize,cudaMemcpyDeviceToHost),"CUDA Memcpy Host To Device Failed");
-
-	float minssid = FLT_MAX;
-	int rowidx = 0;
-	int colidx = 0;
-	for(int i = 0; i < height - SAMPLE_SIZE; i++) {
-		//printf("\n");
-		for(int j = 0; j < width - SAMPLE_SIZE; j++) {
-			//printf("\t%f",h_ssidArr[i][j]);
-			if(minssid > h_ssidArr[i][j]) {
-				minssid = h_ssidArr[i][j];
-				rowidx = i;
-				colidx = j;
+cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, std::vector<cv::Mat>& imglist) {
+	int minSSD = 0;
+	int minIdx = 0;
+	for(int i = 0; i < imglist.size(); i++) {
+		if(i == 0) {
+			minSSD = computeCombinedSSD(prevImg, topImg, imglist[i], overlap_size);
+			minIdx = i;
+		} else {
+			int ssd = computeCombinedSSD(prevImg, topImg, imglist[i], overlap_size);
+			if(ssd < minSSD) {
+				minSSD = ssd;
+				minIdx = i;
 			}
 		}
 	}
-
-	//printf("\nminssid : %f, row : %d, col : %d\n",minssid,rowidx,colidx);
-	cv::Mat curImg = hSrc(cv::Range(rowidx, rowidx + SAMPLE_SIZE), cv::Range(colidx, colidx + SAMPLE_SIZE));
-	//cout << curImg << endl;
-	return curImg;
+	return imglist[minIdx];
 }
 
 cv::Mat getPreviousImg(int i, int j, cv::Mat& hDst) {
@@ -294,18 +170,27 @@ void placeImg(int row, int col, cv::Mat& tile, cv::Mat& lImg) {
 
 void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 
-	int height = hSrc.rows;
-	int width = hSrc.cols;
+	int x_size = hSrc.rows;
+	int y_size = hSrc.cols;
 	//std::cout << "inside image quilting" << endl;
 
-	cv::cuda::GpuMat dDst;
+	cv::cuda::GpuMat dSrc, dDst;
+	dSrc.upload(hSrc);
 
-	std::vector<cv::Mat> imglist = createImageList(hSrc);
+
+	std::vector<cv::cuda::GpuMat> imglist = createImageList(dSrc);
+
+
+	std::vector<cv::cuda::GpuMat> dList((x_size - sample_size) * (y_size - sample_size));
+	const dim3 grid(x_size-sample_size, y_size-sample_size);
+	const dim3 block(1,1);
+
+	//cudaCreateImageList<<<grid,block>>>(dSrc,dList,x_size,y_size,sample_size);
 
 	int nx = outputX_size/(sample_size - overlap_size);
 	int ny = outputY_size/(sample_size - overlap_size);
-	int newx = nx + (height - nx * overlap_size) / sample_size;
-	int newy = ny + (width - ny * overlap_size) / sample_size;
+	int newx = nx + (x_size - nx * overlap_size) / sample_size;
+	int newy = ny + (y_size - ny * overlap_size) / sample_size;
 
 	for(int i = 0; i < newx; i++ ) {
 		for(int j = 0; j < newy; j++) {
@@ -315,11 +200,7 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 
 			cv::Mat topImg = getTopImg(i, j, hDst);
 
-			cv::Mat currImg;
-
-			currImg = getMinSSDImg(prevImg, topImg, hSrc, width, height);
-
-			//cout << "currImg\n" << currImg << endl;
+			cv::Mat currImg = getMinSSDImg(prevImg, topImg, imglist);
 			placeImg(i, j, currImg, hDst);
 
 		}
@@ -333,7 +214,21 @@ int main() {
 
 
 	int num_devices = getCudaEnabledDeviceCount();
-	cout << "gpu count :" << num_devices << endl;
+	cout << "cpu count :" << num_devices << endl;
+
+	for (int i = 0; i < num_devices; ++i)
+	    {
+	        cv::cuda::printShortCudaDeviceInfo(i);
+
+	        DeviceInfo dev_info(i);
+	        if (!dev_info.isCompatible())
+	        {
+	            std::cout << "CUDA module isn't built for GPU #" << i << " ("
+	                 << dev_info.name() << ", CC " << dev_info.majorVersion()
+	                 << dev_info.minorVersion() << "\n";
+	            return -1;
+	        }
+	    }
 
 	std::cout << "Hello World" << std::endl;
 	std::string imageName = "image1.png";
@@ -343,8 +238,8 @@ int main() {
 		cout << "Cannot read " + imageName << endl;
 	} else {
 		cout << imageName + " loaded" << endl;
-		//cout << input << endl;
-		/*int b = input.at<cv::Vec3b>(0,0)[0];
+		/*cout << input << endl;
+		int b = input.at<cv::Vec3b>(0,0)[0];
 		int g = input.at<cv::Vec3b>(0,0)[1];
 		int r = input.at<cv::Vec3b>(0,0)[2];
 
