@@ -86,10 +86,6 @@ __global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, int 
 
 	if (rowIdx == 0 && colIdx == 0) {
 
-		if(blkcolIdx == 0 && blkrowIdx == 15) {
-			printf("im here");
-		}
-
 		float ssid = 0;
 
 		if (preImg != 0) {
@@ -217,7 +213,7 @@ cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width
 	float* d_ssidArr;
 	size_t arraysize = (width - SAMPLE_SIZE) * (height - SAMPLE_SIZE) * sizeof(*d_ssidArr);
 
-	cout << "prevImg\n" << prevImg << endl;
+	//cout << "prevImg\n" << prevImg << endl;
 
 	SAFE_CALL(cudaMalloc<float>(&d_ssidArr,arraysize),"CUDA Malloc Failed");
 	SAFE_CALL(cudaMemcpy(d_ssidArr,h_ssidArr,arraysize,cudaMemcpyHostToDevice),"CUDA Memcpy Host To Device Failed");
@@ -242,7 +238,7 @@ cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width
 		}
 	}
 
-	printf("\nminssid : %f, row : %d, col : %d\n",minssid,rowidx,colidx);
+	//printf("\nminssid : %f, row : %d, col : %d\n",minssid,rowidx,colidx);
 	cv::Mat curImg = hSrc(cv::Range(rowidx, rowidx + SAMPLE_SIZE), cv::Range(colidx, colidx + SAMPLE_SIZE));
 	//cout << curImg << endl;
 	return curImg;
@@ -302,7 +298,7 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 
 	for(int i = 0; i < newx; i++ ) {
 		for(int j = 0; j < newy; j++) {
-			cout << "i , j : " << i << " : " << j << endl;
+			//cout << "i , j : " << i << " : " << j << endl;
 
 			cv::Mat prevImg = getPreviousImg(i, j, hDst);
 
@@ -310,13 +306,9 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 
 			cv::Mat currImg;
 
-			if(i==1 && j==0) {
-				printf("my condition satisfied");
-			}
-
 			currImg = getMinSSDImg(prevImg, topImg, hSrc, width, height);
 
-			cout << "currImg\n" << currImg << endl;
+			//cout << "currImg\n" << currImg << endl;
 			placeImg(i, j, currImg, hDst);
 
 		}
@@ -340,7 +332,7 @@ int main() {
 		cout << "Cannot read " + imageName << endl;
 	} else {
 		cout << imageName + " loaded" << endl;
-		cout << input << endl;
+		//cout << input << endl;
 		/*int b = input.at<cv::Vec3b>(0,0)[0];
 		int g = input.at<cv::Vec3b>(0,0)[1];
 		int r = input.at<cv::Vec3b>(0,0)[2];
