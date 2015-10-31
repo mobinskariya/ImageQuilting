@@ -85,12 +85,17 @@ __global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, int 
 	__syncthreads();
 
 	if (rowIdx == 0 && colIdx == 0) {
-		int ssid = 0;
+
+		if(blkcolIdx == 0 && blkrowIdx == 15) {
+			printf("im here");
+		}
+
+		float ssid = 0;
 
 		if (preImg != 0) {
 			for(int i = 0; i < SAMPLE_SIZE; i++) {
 				for(int j = 0; j < OVERLAP_SIZE; j++) {
-					int diff = subImgGray[i][j] - preImgGray[i][SAMPLE_SIZE - OVERLAP_SIZE + i];
+					int diff = subImgGray[i][j] - preImgGray[i][SAMPLE_SIZE - OVERLAP_SIZE + j];
 					ssid += sqrtf((float) (diff * diff));
 				}
 			}
@@ -104,7 +109,9 @@ __global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, int 
 				}
 			}
 		}
-		ssidArr[(blkrowIdx * gridDim.y) + blkcolIdx] = ssid;
+
+		int idx = (blkrowIdx * gridDim.x) + blkcolIdx;
+		ssidArr[idx] = ssid;
 	}
 }
 
@@ -192,21 +199,6 @@ int computeCombinedSSD(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& randImg, int 
 }
 
 cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width, int height) {
-	/*int minSSD = 0;
-	int minIdx = 0;
-	for(int i = 0; i < imglist.size(); i++) {
-		if(i == 0) {
-			minSSD = computeCombinedSSD(prevImg, topImg, imglist[i], overlap_size);
-			minIdx = i;
-		} else {
-			int ssd = computeCombinedSSD(prevImg, topImg, imglist[i], overlap_size);
-			if(ssd < minSSD) {
-				minSSD = ssd;
-				minIdx = i;
-			}
-		}
-	}*/
-
 	cv::cuda::GpuMat dSrc, d_prevImg, d_topImg;
 	dSrc.upload(hSrc);
 	d_prevImg.upload(prevImg);
@@ -216,12 +208,19 @@ cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width
 	const dim3 grid(width-sample_size,height-sample_size);
 	const dim3 block(sample_size,sample_size);
 
-	float h_ssidArr[width-SAMPLE_SIZE][height-SAMPLE_SIZE];
+	float h_ssidArr[height-SAMPLE_SIZE][width-SAMPLE_SIZE];
+	for(int i = 0; i < height-SAMPLE_SIZE; i++) {
+		for(int j = 0; j < width-SAMPLE_SIZE; j++) {
+			h_ssidArr[i][j] = i * (width - SAMPLE_SIZE) + j;
+		}
+	}
 	float* d_ssidArr;
-	size_t arraysize = (width - SAMPLE_SIZE) * (height - SAMPLE_SIZE) * sizeof(float);
+	size_t arraysize = (width - SAMPLE_SIZE) * (height - SAMPLE_SIZE) * sizeof(*d_ssidArr);
 
+	cout << "prevImg\n" << prevImg << endl;
 
 	SAFE_CALL(cudaMalloc<float>(&d_ssidArr,arraysize),"CUDA Malloc Failed");
+	SAFE_CALL(cudaMemcpy(d_ssidArr,h_ssidArr,arraysize,cudaMemcpyHostToDevice),"CUDA Memcpy Host To Device Failed");
 
 	cudaGetMinSSDImg<<<grid,block>>>(dSrc.ptr(), d_prevImg.ptr(), d_topImg.ptr(), dSrc.step, d_ssidArr);
 	cudaDeviceSynchronize();
@@ -243,7 +242,7 @@ cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width
 		}
 	}
 
-	//printf("\nminssid : %f, row : %d, col : %d\n",minssid,rowidx,colidx);
+	printf("\nminssid : %f, row : %d, col : %d\n",minssid,rowidx,colidx);
 	cv::Mat curImg = hSrc(cv::Range(rowidx, rowidx + SAMPLE_SIZE), cv::Range(colidx, colidx + SAMPLE_SIZE));
 	//cout << curImg << endl;
 	return curImg;
@@ -303,21 +302,21 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 
 	for(int i = 0; i < newx; i++ ) {
 		for(int j = 0; j < newy; j++) {
-			//cout << "i , j : " << i << " : " << j << endl;
+			cout << "i , j : " << i << " : " << j << endl;
 
 			cv::Mat prevImg = getPreviousImg(i, j, hDst);
 
 			cv::Mat topImg = getTopImg(i, j, hDst);
 
 			cv::Mat currImg;
-			if(i == 0 && j == 0) {
-				currImg = imglist[0];
-			} else {
 
-				cout << "\n\n\ni, j :" << i << "," << j << endl;
-				currImg = getMinSSDImg(prevImg, topImg, hSrc, width, height);
+			if(i==1 && j==0) {
+				printf("my condition satisfied");
 			}
 
+			currImg = getMinSSDImg(prevImg, topImg, hSrc, width, height);
+
+			cout << "currImg\n" << currImg << endl;
 			placeImg(i, j, currImg, hDst);
 
 		}
@@ -341,8 +340,8 @@ int main() {
 		cout << "Cannot read " + imageName << endl;
 	} else {
 		cout << imageName + " loaded" << endl;
-		/*cout << input << endl;
-		int b = input.at<cv::Vec3b>(0,0)[0];
+		cout << input << endl;
+		/*int b = input.at<cv::Vec3b>(0,0)[0];
 		int g = input.at<cv::Vec3b>(0,0)[1];
 		int r = input.at<cv::Vec3b>(0,0)[2];
 
