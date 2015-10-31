@@ -140,6 +140,17 @@ std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
 	return imglist;
 }
 
+/* __device__ cv::Mat getSubArray(cv::Mat& arr, int row, int col) 
+{
+    Matrix Asub;
+    Asub.width    = BLOCK_SIZE;
+    Asub.height   = BLOCK_SIZE;
+    Asub.stride   = A.stride;
+    Asub.elements = &A.elements[A.stride * BLOCK_SIZE * row
+                                         + BLOCK_SIZE * col];
+    return Asub;
+}*/
+
 double getPixelValue(cv::Vec3b& pixel) {
 	int b = pixel[0];
 	int g = pixel[1];
