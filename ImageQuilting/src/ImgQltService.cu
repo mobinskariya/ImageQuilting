@@ -205,11 +205,7 @@ cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width
 	const dim3 block(sample_size,sample_size);
 
 	float h_ssidArr[height-SAMPLE_SIZE][width-SAMPLE_SIZE];
-	for(int i = 0; i < height-SAMPLE_SIZE; i++) {
-		for(int j = 0; j < width-SAMPLE_SIZE; j++) {
-			h_ssidArr[i][j] = i * (width - SAMPLE_SIZE) + j;
-		}
-	}
+
 	float* d_ssidArr;
 	size_t arraysize = (width - SAMPLE_SIZE) * (height - SAMPLE_SIZE) * sizeof(*d_ssidArr);
 
