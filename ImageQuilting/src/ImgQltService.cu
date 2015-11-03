@@ -118,8 +118,23 @@ cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width
 	SAFE_CALL(cudaMalloc<float>(&d_ssidArr,arraysize),"CUDA Malloc Failed");
 	SAFE_CALL(cudaMemcpy(d_ssidArr,h_ssidArr,arraysize,cudaMemcpyHostToDevice),"CUDA Memcpy Host To Device Failed");
 
+	float ms;
+
+	cudaEvent_t start,stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord(start, 0);
+
 	cudaGetMinSSDImg<<<grid,block>>>(dSrc.ptr(), d_prevImg.ptr(), d_topImg.ptr(), dSrc.step, d_ssidArr);
 	cudaDeviceSynchronize();
+
+	//calculating time
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&ms,start,stop);
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
+	std::cout<<"Execution time:"<<ms<<"  ms"<<std::endl;
 
 	SAFE_CALL(cudaMemcpy(h_ssidArr,d_ssidArr,arraysize,cudaMemcpyDeviceToHost),"CUDA Memcpy Host To Device Failed");
 
