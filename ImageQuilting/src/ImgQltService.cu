@@ -41,10 +41,10 @@ __device__ uchar* getSubImg(uchar* dSrc, int row, int col, int step) {
 }
 
 __device__ uchar getGrayElement(uchar* subArray, int row, int col, int step) {
-	int b = subArray[row * step + col];
-	int g = subArray[row * step + col + 1];
-	int r = subArray[row * step + col + 2];
-	return 0.2989 * r + 0.5870 * g + 0.1140 * b;
+	// b = subArray[row * step + col];
+	// g = subArray[row * step + col + 1];
+	// r = subArray[row * step + col + 2];
+	return 0.2989 * subArray[row * step + col + 2] + 0.5870 * subArray[row * step + col + 1] + 0.1140 * subArray[row * step + col];
 }
 
 __global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, int step, float* ssidArr) {
@@ -126,7 +126,7 @@ cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width
 	cudaEventRecord(start, 0);
 
 	cudaGetMinSSDImg<<<grid,block>>>(dSrc.ptr(), d_prevImg.ptr(), d_topImg.ptr(), dSrc.step, d_ssidArr);
-	cudaDeviceSynchronize();
+	//cudaDeviceSynchronize();
 
 	//calculating time
 	cudaEventRecord(stop, 0);

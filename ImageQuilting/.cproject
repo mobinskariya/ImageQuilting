@@ -30,6 +30,7 @@
 								<option id="nvcc.compiler.include.paths.677463326" name="Include paths (-I)" superClass="nvcc.compiler.include.paths" valueType="includePath">
 									<listOptionValue builtIn="false" value="/usr/local/include/opencv"/>
 								</option>
+								<option id="nvcc.compiler.optionsfile.1186653319" superClass="nvcc.compiler.optionsfile" value="/home/mobin/Dropbox/Shared/Project/misc/options.txt" valueType="string"/>
 								<inputType id="nvcc.compiler.input.cu.1715438026" superClass="nvcc.compiler.input.cu"/>
 								<inputType id="nvcc.compiler.input.cpp.1154815790" superClass="nvcc.compiler.input.cpp"/>
 								<inputType id="nvcc.compiler.input.c.1862310431" superClass="nvcc.compiler.input.c"/>
