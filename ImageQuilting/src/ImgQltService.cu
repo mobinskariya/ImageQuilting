@@ -41,10 +41,10 @@ __device__ uchar* getSubImg(uchar* dSrc, int row, int col, int step) {
 }
 
 __device__ uchar getGrayElement(uchar* subArray, int row, int col, int step) {
-	// b = subArray[row * step + col];
-	// g = subArray[row * step + col + 1];
-	// r = subArray[row * step + col + 2];
-	return 0.2989 * subArray[row * step + col + 2] + 0.5870 * subArray[row * step + col + 1] + 0.1140 * subArray[row * step + col];
+	int b = subArray[row * step + col];
+	int g = subArray[row * step + col + 1];
+	int r = subArray[row * step + col + 2];
+	return 0.2989 * r + 0.5870 * g + 0.1140 * b;
 }
 
 __global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, int step, float* ssidArr) {
@@ -69,10 +69,10 @@ __global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, int 
 		topImgGray[rowIdx][colIdx] = getGrayElement(topImg, rowIdx, colIdx * 3, step);
 	}
 
-	__syncthreads();
-
 	//only the first thread from each block need to work on the rest
 	if (rowIdx == 0 && colIdx == 0) {
+
+		__syncthreads();
 
 		float ssid = 0;
 
@@ -99,10 +99,10 @@ __global__ void cudaGetMinSSDImg(uchar* dSrc, uchar* preImg, uchar* topImg, int 
 	}
 }
 
-cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, int width, int height) {
-	cv::cuda::GpuMat dSrc, d_prevImg, d_topImg;
+cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& hSrc, cv::cuda::GpuMat& dSrc, int width, int height) {
+	cv::cuda::GpuMat d_prevImg, d_topImg;
 
-	dSrc.upload(hSrc);
+	//dSrc.upload(hSrc);
 	d_prevImg.upload(prevImg);
 	d_topImg.upload(topImg);
 
@@ -197,12 +197,13 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 	int height = hSrc.rows;
 	int width = hSrc.cols;
 
-	cv::cuda::GpuMat dDst;
+	cv::cuda::GpuMat dSrc;
+	dSrc.upload(hSrc);
 
 	int nx = OUTPUTX_SIZE/(SAMPLE_SIZE - OVERLAP_SIZE);
 	int ny = OUTPUTY_SIZE/(SAMPLE_SIZE - OVERLAP_SIZE);
-	int newx = nx + (height - nx * OVERLAP_SIZE) / SAMPLE_SIZE;
-	int newy = ny + (width - ny * OVERLAP_SIZE) / SAMPLE_SIZE;
+	//int newx = nx + (height - nx * OVERLAP_SIZE) / SAMPLE_SIZE;
+	//int newy = ny + (width - ny * OVERLAP_SIZE) / SAMPLE_SIZE;
 
 	for(int i = 0; i < nx; i++ ) {
 		for(int j = 0; j < ny; j++) {
@@ -213,7 +214,7 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 
 			cv::Mat currImg;
 
-			currImg = getMinSSDImg(prevImg, topImg, hSrc, width, height);
+			currImg = getMinSSDImg(prevImg, topImg, hSrc, dSrc, width, height);
 
 			placeImg(i, j, currImg, hDst);
 
@@ -230,7 +231,7 @@ int main() {
 	int num_devices = getCudaEnabledDeviceCount();
 	cout << "gpu count :" << num_devices << endl;
 
-	std::string imageName = "image2.jpg";
+	std::string imageName = "image5.jpg";
 	cv::Mat input = cv::imread(imageName, CV_LOAD_IMAGE_COLOR);
 
 	if (input.empty()) {
