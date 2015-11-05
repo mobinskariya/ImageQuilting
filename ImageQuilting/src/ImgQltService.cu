@@ -19,8 +19,8 @@
 
 #define SAMPLE_SIZE 20
 #define OVERLAP_SIZE 5
-#define OUTPUTX_SIZE 250
-#define OUTPUTY_SIZE 250
+#define OUTPUTX_SIZE 500
+#define OUTPUTY_SIZE 500
 
 using std::cout;
 using std::endl;
@@ -231,7 +231,7 @@ int main() {
 	int num_devices = getCudaEnabledDeviceCount();
 	cout << "gpu count :" << num_devices << endl;
 
-	std::string imageName = "image5.jpg";
+	std::string imageName = "image1.png";
 	cv::Mat input = cv::imread(imageName, CV_LOAD_IMAGE_COLOR);
 
 	if (input.empty()) {
