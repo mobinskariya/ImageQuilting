@@ -35,15 +35,6 @@ std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
 	return imglist;
 }
 
-double getPixelValue(cv::Vec3b& pixel) {
-	int b = pixel[0];
-	int g = pixel[1];
-	int r = pixel[2];
-	//cout << "b " << b << "g " << g << "r "<< r <<  endl;
-	//cout << "result:" << 0.2989 * r + 0.5870 * g + 0.1140 * b << endl;
-	return 0.2989 * r + 0.5870 * g + 0.1140 * b;
-}
-
 int computeSSD(cv::Mat& overlap1, cv::Mat& overlap2) {
 	double sum = 0;
 
@@ -52,7 +43,11 @@ int computeSSD(cv::Mat& overlap1, cv::Mat& overlap2) {
 	cv::cvtColor(overlap1, gray1, cv::COLOR_BGR2GRAY);
 	cv::cvtColor(overlap2, gray2, cv::COLOR_BGR2GRAY);
 
-	for (int i = 0; i < overlap1.rows; i++) {
+	cv::Mat diff;
+	cv::absdiff(gray1, gray2, diff);
+	sum = cv::sum(diff)[0];
+
+	/*for (int i = 0; i < overlap1.rows; i++) {
 		for (int j = 0; j < overlap1.cols; j++) {
 			uchar val1 = gray1.at<uchar>(i,j);// getPixelValue(overlap1.at<cv::Vec3b>(i,j));
 			//cout << "val1: " << val1 << endl;
@@ -62,7 +57,7 @@ int computeSSD(cv::Mat& overlap1, cv::Mat& overlap2) {
 			//cout << "sum " << sum << endl;
 		}
 		//	sum += ((oi1[j] - oi2[j]) ^ 2) ^ 0.5;
-	}
+	}*/
 
 	//cout << "overlap2.rows " << overlap1.rows << endl;
 	//cout << "overlap2.cols " << overlap1.cols << endl;
@@ -152,6 +147,26 @@ void placeImg(int row, int col, cv::Mat& tile, cv::Mat& lImg) {
 }
 
 void findVerticalMinPath(cv::Mat& currImg, cv::Mat& prevImg) {
+	cv::Mat overlap1 = prevImg(cv::Range(0,prevImg.rows),cv::Range(prevImg.cols-OVERLAP_SIZE,prevImg.cols));
+	cv::Mat overlap2 = currImg(cv::Range(0,currImg.rows),cv::Range(0,OVERLAP_SIZE));
+	cv::Mat gray1, gray2;
+
+	cv::cvtColor(overlap1, gray1, cv::COLOR_BGR2GRAY);
+	cv::cvtColor(overlap2, gray2, cv::COLOR_BGR2GRAY);
+	cv::Mat error(overlap1.rows, overlap1.cols, CV_8UC1);
+
+	cv::Mat diff = gray1 - gray2;
+	cv::Mat pow;
+	cv::multiply(diff, diff, pow);
+	cv::sqrt(pow,error);
+
+	for (int i = 0; i < overlap1.rows; i++) {
+		for (int j = 0; j < overlap1.cols; j++) {
+			uchar val1 = gray1.at<uchar>(i,j);// getPixelValue(overlap1.at<cv::Vec3b>(i,j));
+			uchar val2 = gray2.at<uchar>(i,j);//getPixelValue(overlap2.at<cv::Vec3b>(i,j));
+			//error[] = std::sqrt(std::pow((val1 - val2), 2 ));
+		}
+	}
 
 }
 
