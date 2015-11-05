@@ -146,15 +146,11 @@ void placeImg(int row, int col, cv::Mat& tile, cv::Mat& lImg) {
 
 void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 
-	int x_size = hSrc.rows;
-	int y_size = hSrc.cols;
 
 	std::vector<cv::Mat> imglist = createImageList(hSrc);
 
 	int nx = OUTPUTX_SIZE/(SAMPLE_SIZE - OVERLAP_SIZE);
 	int ny = OUTPUTY_SIZE/(SAMPLE_SIZE - OVERLAP_SIZE);
-	int newx = nx + (OUTPUTX_SIZE - nx * OVERLAP_SIZE) / SAMPLE_SIZE;
-	int newy = ny + (OUTPUTY_SIZE - ny * OVERLAP_SIZE) / SAMPLE_SIZE;
 
 	for(int i = 0; i < nx; i++ ) {
 		for(int j = 0; j < ny; j++) {
