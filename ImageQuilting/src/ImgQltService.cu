@@ -9,28 +9,26 @@
 #include<cstdio>
 #include<opencv2/core/core.hpp>
 #include"opencv2/highgui/highgui.hpp"
-#include<cuda_runtime.h>
 #include<time.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include <cuda.h>
-#include"opencv2/cudaarithm.hpp"
+
+
+#define SAMPLE_SIZE 20
+#define OVERLAP_SIZE 5
+#define OUTPUTX_SIZE 250
+#define OUTPUTY_SIZE 250
 
 using std::cout;
 using std::endl;
 
-int outputX_size = 250;
-int outputY_size = 250;
-int sample_size = 20;
-int overlap_size = 5;
-
 std::vector<cv::Mat> createImageList(cv::Mat& hSrc) {
 	int x_size = hSrc.rows;
 	int y_size = hSrc.cols;
-	std::vector<cv::Mat> imglist((x_size - sample_size) * (y_size - sample_size));
-	for(int i = 0; i < x_size - sample_size; i++) {
-		for(int j = 0; j < y_size - sample_size; j++) {
-			imglist[(i * (y_size - sample_size)) + j] = hSrc(cv::Range(i, i + sample_size), cv::Range(j, j + sample_size));
+	std::vector<cv::Mat> imglist((x_size - SAMPLE_SIZE) * (y_size - SAMPLE_SIZE));
+	for(int i = 0; i < x_size - SAMPLE_SIZE; i++) {
+		for(int j = 0; j < y_size - SAMPLE_SIZE; j++) {
+			imglist[(i * (y_size - SAMPLE_SIZE)) + j] = hSrc(cv::Range(i, i + SAMPLE_SIZE), cv::Range(j, j + SAMPLE_SIZE));
 		}
 	}
 	return imglist;
@@ -65,27 +63,27 @@ int computeSSD(cv::Mat& overlap1, cv::Mat& overlap2) {
 	return sum;
 }
 
-int computeHorizontalSSD(cv::Mat& topImg, cv::Mat& randImg, int overlap_size) {
+int computeHorizontalSSD(cv::Mat& topImg, cv::Mat& randImg) {
 	if(topImg.dims == 0) {
 		return 0;
 	}
-	cv::Mat overlap1 = topImg(cv::Range(topImg.rows-overlap_size, topImg.rows), cv::Range(0,topImg.cols));
-	cv::Mat overlap2 = randImg(cv::Range(0, overlap_size), cv::Range(0,topImg.cols));
+	cv::Mat overlap1 = topImg(cv::Range(topImg.rows-OVERLAP_SIZE, topImg.rows), cv::Range(0,topImg.cols));
+	cv::Mat overlap2 = randImg(cv::Range(0, OVERLAP_SIZE), cv::Range(0,topImg.cols));
 	return computeSSD(overlap1, overlap2);
 }
 
-int computeVerticalSSD(cv::Mat& prevImg, cv::Mat& randImg, int overlap_size) {
+int computeVerticalSSD(cv::Mat& prevImg, cv::Mat& randImg) {
 	if(prevImg.dims == 0) {
 		return 0;
 	}
-	cv::Mat overlap1 = prevImg(cv::Range(0,prevImg.rows),cv::Range(prevImg.cols-overlap_size,prevImg.cols));
-	cv::Mat overlap2 = randImg(cv::Range(0,randImg.rows),cv::Range(0,overlap_size));
+	cv::Mat overlap1 = prevImg(cv::Range(0,prevImg.rows),cv::Range(prevImg.cols-OVERLAP_SIZE,prevImg.cols));
+	cv::Mat overlap2 = randImg(cv::Range(0,randImg.rows),cv::Range(0,OVERLAP_SIZE));
 	return computeSSD(overlap1, overlap2);
 }
 
-int computeCombinedSSD(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& randImg, int overlap_size) {
-	double verticalSSD = computeVerticalSSD(prevImg, randImg, overlap_size);
-	double horizontalSSD = computeHorizontalSSD(topImg, randImg, overlap_size);
+int computeCombinedSSD(cv::Mat& prevImg, cv::Mat& topImg, cv::Mat& randImg) {
+	double verticalSSD = computeVerticalSSD(prevImg, randImg);
+	double horizontalSSD = computeHorizontalSSD(topImg, randImg);
 	return verticalSSD + horizontalSSD;
 }
 
@@ -94,16 +92,18 @@ cv::Mat getMinSSDImg(cv::Mat& prevImg, cv::Mat& topImg, std::vector<cv::Mat>& im
 	int minIdx = 0;
 	for(int i = 0; i < imglist.size(); i++) {
 		if(i == 0) {
-			minSSD = computeCombinedSSD(prevImg, topImg, imglist[i], overlap_size);
+			minSSD = computeCombinedSSD(prevImg, topImg, imglist[i]);
 			minIdx = i;
 		} else {
-			int ssd = computeCombinedSSD(prevImg, topImg, imglist[i], overlap_size);
+			int ssd = computeCombinedSSD(prevImg, topImg, imglist[i]);
 			if(ssd < minSSD) {
 				minSSD = ssd;
 				minIdx = i;
 			}
 		}
 	}
+	//cout << minSSD << "\n" << endl;
+	//cout << minIdx << endl;
 	return imglist[minIdx];
 }
 
@@ -112,7 +112,7 @@ cv::Mat getPreviousImg(int i, int j, cv::Mat& hDst) {
 	if(j == 0) {
 		return subImg;
 	} else {
-		subImg = hDst(cv::Range((i*sample_size)-(overlap_size*i),((i+1)*sample_size)-(overlap_size*i)),cv::Range(((j-1)*sample_size)-(j-1)*overlap_size,(j*sample_size)-(j-1)*overlap_size));
+		subImg = hDst(cv::Range((i*SAMPLE_SIZE)-(OVERLAP_SIZE*i),((i+1)*SAMPLE_SIZE)-(OVERLAP_SIZE*i)),cv::Range(((j-1)*SAMPLE_SIZE)-(j-1)*OVERLAP_SIZE,(j*SAMPLE_SIZE)-(j-1)*OVERLAP_SIZE));
 		return subImg;
 	}
 }
@@ -122,25 +122,25 @@ cv::Mat getTopImg(int i, int j, cv::Mat& hDst) {
 	if(i == 0) {
 		return subImg;
 	} else {
-		subImg = hDst(cv::Range(((i-1)*sample_size)-(i-1)*overlap_size,(i*sample_size)-(i-1)*overlap_size),cv::Range((j*sample_size)-(overlap_size*j),((j+1)*sample_size)-(overlap_size*j)));
+		subImg = hDst(cv::Range(((i-1)*SAMPLE_SIZE)-(i-1)*OVERLAP_SIZE,(i*SAMPLE_SIZE)-(i-1)*OVERLAP_SIZE),cv::Range((j*SAMPLE_SIZE)-(OVERLAP_SIZE*j),((j+1)*SAMPLE_SIZE)-(OVERLAP_SIZE*j)));
 		return subImg;
 	}
 }
 
 void placeImg(int row, int col, cv::Mat& tile, cv::Mat& lImg) {
-	int x1 = (row*sample_size)-(overlap_size*row);
-	int x2 = ((row+1)*sample_size)-(overlap_size*row);
-	int y1 = (col*sample_size)-(overlap_size*col);
-	int y2 = ((col+1)*sample_size)-(overlap_size*col);
+	int x1 = (row*SAMPLE_SIZE)-(OVERLAP_SIZE*row);
+	int x2 = ((row+1)*SAMPLE_SIZE)-(OVERLAP_SIZE*row);
+	int y1 = (col*SAMPLE_SIZE)-(OVERLAP_SIZE*col);
+	int y2 = ((col+1)*SAMPLE_SIZE)-(OVERLAP_SIZE*col);
 	if(row == 0) {
-		x1 = (row*sample_size);
-		x2 = ((row+1)*sample_size);
+		x1 = (row*SAMPLE_SIZE);
+		x2 = ((row+1)*SAMPLE_SIZE);
 	}
 	if(col == 0){
-		y1 = (col*sample_size);
-		y2 = ((col+1)*sample_size);
+		y1 = (col*SAMPLE_SIZE);
+		y2 = ((col+1)*SAMPLE_SIZE);
 	}
-
+	//cout << "inside placeImage" << x1 << ":" << x2 << ":" << y1 << ":" << y2 << ":" << endl;
 	tile.copyTo(lImg(cv::Range(x1, x2), cv::Range(y1, y2)));
 }
 
@@ -151,19 +151,27 @@ void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
 
 	std::vector<cv::Mat> imglist = createImageList(hSrc);
 
-	int nx = outputX_size/(sample_size - overlap_size);
-	int ny = outputY_size/(sample_size - overlap_size);
-	int newx = nx + (x_size - nx * overlap_size) / sample_size;
-	int newy = ny + (y_size - ny * overlap_size) / sample_size;
+	int nx = OUTPUTX_SIZE/(SAMPLE_SIZE - OVERLAP_SIZE);
+	int ny = OUTPUTY_SIZE/(SAMPLE_SIZE - OVERLAP_SIZE);
+	int newx = nx + (OUTPUTX_SIZE - nx * OVERLAP_SIZE) / SAMPLE_SIZE;
+	int newy = ny + (OUTPUTY_SIZE - ny * OVERLAP_SIZE) / SAMPLE_SIZE;
 
-	for(int i = 0; i < newx; i++ ) {
-		for(int j = 0; j < newy; j++) {
+	for(int i = 0; i < nx; i++ ) {
+		for(int j = 0; j < ny; j++) {
 
+			//cout << "i , j : " << i << " : " << j << endl;
 			cv::Mat prevImg = getPreviousImg(i, j, hDst);
 
 			cv::Mat topImg = getTopImg(i, j, hDst);
 
+			clock_t start = clock();
 			cv::Mat currImg = getMinSSDImg(prevImg, topImg, imglist);
+			clock_t end = clock();
+			double elapsed_secs = double(end - start) * 1000 / CLOCKS_PER_SEC;
+
+			cout << "Execution time:" << elapsed_secs <<"  ms"<< endl;
+
+			//cout << currImg << endl;
 			placeImg(i, j, currImg, hDst);
 
 		}
@@ -179,12 +187,17 @@ int main() {
 	std::string imageName = "image1.png";
 	cv::Mat input = cv::imread(imageName, CV_LOAD_IMAGE_COLOR);
 
+	//cv::Mat inputGray = cv::imread(imageName, CV_LOAD_IMAGE_GRAYSCALE);
+
+
+	//std::cout << "gray :\n" << inputGray << endl;
+
 	if (input.empty()) {
 		cout << "Cannot read " + imageName << endl;
 	} else {
 		cout << imageName + " loaded" << endl;
 	}
-	cv::Mat output(outputY_size, outputX_size, CV_8UC3);
+	cv::Mat output(OUTPUTY_SIZE, OUTPUTX_SIZE, CV_8UC3);
 
 	clock_t start = clock();
 	imageQuilting(input, output);
