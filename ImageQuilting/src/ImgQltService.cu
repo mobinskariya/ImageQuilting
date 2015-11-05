@@ -9,6 +9,7 @@
 #include<cstdio>
 #include<opencv2/core/core.hpp>
 #include"opencv2/highgui/highgui.hpp"
+#include <opencv2/imgproc/imgproc.hpp>
 #include<time.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -45,11 +46,17 @@ double getPixelValue(cv::Vec3b& pixel) {
 
 int computeSSD(cv::Mat& overlap1, cv::Mat& overlap2) {
 	double sum = 0;
+
+	cv::Mat gray1, gray2;
+
+	cv::cvtColor(overlap1, gray1, cv::COLOR_BGR2GRAY);
+	cv::cvtColor(overlap2, gray2, cv::COLOR_BGR2GRAY);
+
 	for (int i = 0; i < overlap1.rows; i++) {
 		for (int j = 0; j < overlap1.cols; j++) {
-			double val1 = getPixelValue(overlap1.at<cv::Vec3b>(i,j));
+			uchar val1 = gray1.at<uchar>(i,j);// getPixelValue(overlap1.at<cv::Vec3b>(i,j));
 			//cout << "val1: " << val1 << endl;
-			double val2 = getPixelValue(overlap2.at<cv::Vec3b>(i,j));
+			uchar val2 = gray2.at<uchar>(i,j);//getPixelValue(overlap2.at<cv::Vec3b>(i,j));
 			//cout << "val2: " << val2 << endl;
 			sum += std::sqrt(std::pow((val1 - val2), 2 ));
 			//cout << "sum " << sum << endl;
@@ -142,6 +149,14 @@ void placeImg(int row, int col, cv::Mat& tile, cv::Mat& lImg) {
 	}
 	//cout << "inside placeImage" << x1 << ":" << x2 << ":" << y1 << ":" << y2 << ":" << endl;
 	tile.copyTo(lImg(cv::Range(x1, x2), cv::Range(y1, y2)));
+}
+
+void findVerticalMinPath(cv::Mat& currImg, cv::Mat& prevImg) {
+
+}
+
+void blendImage(cv::Mat& currImg, cv::Mat& prevImg, cv::Mat& topImg) {
+
 }
 
 void imageQuilting(cv::Mat& hSrc, cv::Mat& hDst) {
