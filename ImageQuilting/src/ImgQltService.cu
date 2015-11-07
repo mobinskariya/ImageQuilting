@@ -139,7 +139,6 @@ double findVerticalMinCost(int i, int j, cv::Mat& diff, map<pair<int, int >, dou
 	int cols = diff.cols;
 	vector<pair<int, int > > list1, list2;
 	list1.push_back(make_pair(i,j));
-	double test = costMap[make_pair(2,2)];
 	if( i > 0) {
 		if(j > 0 && j < cols - 1) {
 			costjp1 = costMap[make_pair(i-1,j+1)] != -1 ? costMap[make_pair(i-1,j+1)] : findVerticalMinCost(i-1,j+1, diff,costMap, pathMap);
@@ -186,6 +185,59 @@ double findVerticalMinCost(int i, int j, cv::Mat& diff, map<pair<int, int >, dou
 	}
 	return cost;
 }
+
+double findHorizontalMinCost(int i, int j, cv::Mat& diff, map<pair<int, int >, double>& costMap, map<pair<int, int >, vector<pair<int, int > > >& pathMap) {
+	double cost, costip1, costi, costim1, minimum;
+	int rows = diff.rows;
+	vector<pair<int, int > > list1, list2;
+	list1.push_back(make_pair(i,j));
+	if( j > 0) {
+		if(i > 0 && i < rows - 1) {
+			costip1 = costMap[make_pair(i+1,j-1)] != -1 ? costMap[make_pair(i+1,j-1)] : findHorizontalMinCost(i+1,j-1, diff,costMap, pathMap);
+			costi = costMap[make_pair(i,j-1)] != -1 ? costMap[make_pair(i,j-1)] : findHorizontalMinCost(i,j-1, diff,costMap, pathMap);
+			costim1 = costMap[make_pair(i-1,j-1)] != -1 ? costMap[make_pair(i-1,j-1)] : findHorizontalMinCost(i-1,j-1, diff,costMap, pathMap);
+			double costarr[] = {costip1,costi,costim1};
+			minimum = *min_element(costarr,costarr+3);
+			if(minimum == costip1) {
+				list2 = pathMap[make_pair(i+1,j-1)];
+			} else if (minimum == costim1) {
+				list2 = pathMap[make_pair(i-1,j-1)];
+			} else {
+				list2 = pathMap[make_pair(i,j-1)];
+			}
+		} else if (i == 0) {
+			costip1 = costMap[make_pair(i+1,j-1)] != -1 ? costMap[make_pair(i+1,j-1)] : findHorizontalMinCost(i+1,j-1, diff,costMap, pathMap);
+			costi = costMap[make_pair(i,j-1)] != -1 ? costMap[make_pair(i,j-1)] : findHorizontalMinCost(i,j-1, diff,costMap, pathMap);
+			double costarr[] = {costip1,costi};
+			minimum = *min_element(costarr,costarr+2);
+			if(minimum == costip1) {
+				list2 = pathMap[make_pair(i+1,j-1)];
+			} else {
+				list2 = pathMap[make_pair(i,j-1)];
+			}
+		} else if (i == rows - 1) {
+			costi = costMap[make_pair(i,j-1)] != -1 ? costMap[make_pair(i,j-1)] : findHorizontalMinCost(i,j-1, diff,costMap, pathMap);
+			costim1 = costMap[make_pair(i-1,j-1)] != -1 ? costMap[make_pair(i-1,j-1)] : findHorizontalMinCost(i-1,j-1, diff,costMap, pathMap);
+			double costarr[] = {costip1,costi};
+			minimum = *min_element(costarr,costarr+2);
+			if(minimum == costim1) {
+				list2 = pathMap[make_pair(i-1,j-1)];
+			} else {
+				list2 = pathMap[make_pair(i,j-1)];
+			}
+		}
+		list1.insert(list1.end(), list2.begin(), list2.end());
+		cost = minimum + static_cast<double>( diff.at<uchar>(i,j) );
+		costMap[make_pair(i,j)] = cost;
+		pathMap[make_pair(i,j)] = list1;
+	} else {
+		cost = static_cast<double>( diff.at<uchar>(i,j) );
+		costMap[make_pair(i,j)] = cost;
+		pathMap[make_pair(i,j)].push_back(make_pair(i,j));
+	}
+	return cost;
+}
+
 
 vector<pair<int,int> > findVerticalMinPath(cv::Mat& diff) {
 
@@ -235,7 +287,7 @@ vector<pair<int,int> > findHorizontalMinPath(cv::Mat& diff) {
 
 	int lastcol = diff.cols - 1;
 	for(int i = 0 ; i < diff.rows; i++) {
-		//mincost.push_back(findHorizontalMinCost(i,lastcol, diff,costMap, pathMap));
+		mincost.push_back(findHorizontalMinCost(i,lastcol, diff,costMap, pathMap));
 		minpaths.push_back(pathMap[make_pair(i,lastcol)]);
 	}
 
@@ -314,7 +366,7 @@ void blendImage(cv::Mat& currImg, cv::Mat& prevImg, cv::Mat& topImg) {
 		blendVertically(currImg, prevImg);
 	}
 	if(topImg.dims > 0) {
-		//blendHorizontally(currImg, topImg);
+		blendHorizontally(currImg, topImg);
 	}
 }
 
@@ -387,9 +439,11 @@ int main() {
 
 	cout << "time elapsed :" << elapsed_secs << endl;
 
-	cv::imshow("Output", output);
+	//cv::imshow("Output", output);
 
-	cv::waitKey();
+	//cv::waitKey();
+
+	cv::imwrite("testimg.jpg",output);
 
 	return 0;
 }
